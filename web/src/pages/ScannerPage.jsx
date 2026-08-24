@@ -35,8 +35,10 @@ export default function ScannerPage() {
   return (
     <div className="page">
       <p className="disclaimer">
-        Ranked by volume surge, momentum & range. A screener, not a
-        prediction — use your own judgment.
+        Ranked by volume surge, momentum & range — trending names (clear
+        uptrend/downtrend) surfaced above choppy ones. $5+ price, 2x+ RVOL,
+        and obviously broken data (e.g. -90%+ crashes) filtered out. A
+        screener, not a prediction — use your own judgment.
       </p>
       {lastUpdated && (
         <p className="timestamp">
@@ -55,8 +57,13 @@ export default function ScannerPage() {
             <div className="row-main">
               <div className="symbol">{item.symbol}</div>
               <div className="sub">
-                RVOL <span className="mono">{item.rvol}x</span> · Range{" "}
-                <span className="mono">{item.rangePct}%</span>
+                RVOL <span className="mono">{item.rvol}x</span>
+                {item.lowConfidence && (
+                  <span className="data-flag" title="Extremely high RVOL — often thin/illiquid data, not a genuine surge">
+                    ⚠ thin data
+                  </span>
+                )}{" "}
+                · Range <span className="mono">{item.rangePct}%</span>
               </div>
             </div>
             <div className="row-right">

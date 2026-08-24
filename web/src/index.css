@@ -249,6 +249,13 @@ input {
   margin-top: 4px;
 }
 
+.data-flag {
+  color: #d29922;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
 .add-watchlist {
   position: relative;
   flex-shrink: 0;

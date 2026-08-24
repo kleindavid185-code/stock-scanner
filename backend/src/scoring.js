@@ -6,6 +6,13 @@
 // future and should not be read as one. Think "better Finviz/Trade Ideas
 // scan," not "AI knows what's about to skyrocket."
 
+import { priceActionFlags } from "../signal-engine/indicators.js";
+
+const MIN_PRICE = 5; // below this, spreads/quotes get too noisy to trust
+const MIN_RVOL = 2; // require at least ~2x relative volume to appear at all
+const EXTREME_RVOL = 200; // above this, RVOL usually means thin/broken data, not a real surge
+const BAD_DATA_CHANGE_PCT = -90; // a -90%+ move (like the MSAIW -99% case) is almost always delisted/halted/broken data, not real price action
+
 function pctChange(from, to) {
   if (!from) return 0;
   return ((to - from) / from) * 100;
@@ -19,6 +26,12 @@ function relativeVolume(dailyBar, prevDailyBar) {
   return dailyBar.v / prevDailyBar.v;
 }
 
+/**
+ * Scores one symbol's snapshot, applying the price / RVOL / data-quality
+ * floors. Returns null if the symbol should be excluded entirely. Does NOT
+ * classify trend -- that needs historical bars, fetched separately (see
+ * rankCandidates below) only for symbols that survive these cheap filters.
+ */
 export function scoreSnapshot(symbol, snap) {
   const daily = snap.dailyBar;
   const prevDaily = snap.prevDailyBar;
@@ -31,6 +44,18 @@ export function scoreSnapshot(symbol, snap) {
   const rvol = relativeVolume(daily, prevDaily);
   const rangePct = daily.h && daily.l ? pctChange(daily.l, daily.h) : 0;
   const gapPct = pctChange(prevDaily.c, daily.o);
+
+  if (price < MIN_PRICE) return null;
+  if (rvol < MIN_RVOL) return null;
+  // Extreme crashes are almost always broken/delisted/halted data (a real
+  // -90%+ single-day move without a halt is vanishingly rare) -- exclude
+  // rather than let them dominate the "biggest movers" ranking.
+  if (changePct <= BAD_DATA_CHANGE_PCT || gapPct <= BAD_DATA_CHANGE_PCT) return null;
+
+  // RVOL this extreme is more often a thin/illiquid symbol producing a
+  // noisy volume ratio than a genuine surge -- keep it, but flag it as
+  // low-confidence rather than silently ranking it like a normal result.
+  const lowConfidence = rvol > EXTREME_RVOL;
 
   // Simple weighted composite. Tune freely -- these weights just express
   // "volume surge matters most, then momentum, then intraday range/gap."
@@ -49,6 +74,7 @@ export function scoreSnapshot(symbol, snap) {
     gapPct: round(gapPct),
     volume: daily.v,
     score: round(score),
+    lowConfidence,
   };
 }
 
@@ -56,10 +82,42 @@ function round(n) {
   return Math.round(n * 100) / 100;
 }
 
-export function rankCandidates(snapshots) {
+/**
+ * Classifies a scored candidate's trend from its historical daily bars
+ * (oldest-first) using indicators.js's existing priceActionFlags(). Missing
+ * or insufficient bars just means "unknown trend" -- the candidate still
+ * ranks, just without the trend-priority boost.
+ */
+function classifyTrend(candidate, bars) {
+  if (!bars || !bars.length) return { ...candidate, trend: null };
+  const { flags } = priceActionFlags(bars);
+  const trend = flags.includes("uptrend")
+    ? "uptrend"
+    : flags.includes("downtrend")
+      ? "downtrend"
+      : "choppy";
+  return { ...candidate, trend };
+}
+
+/**
+ * Filters snapshots down to viable candidates, classifies each survivor's
+ * trend from `barsBySymbol` (symbol -> daily bars, oldest-first), and sorts
+ * clear uptrend/downtrend names above choppy/unknown ones -- trending
+ * stocks matter more for this trading style than random noise -- with the
+ * existing composite score breaking ties within each group.
+ */
+export function rankCandidates(snapshots, barsBySymbol = {}) {
   const scored = Object.entries(snapshots)
     .map(([symbol, snap]) => scoreSnapshot(symbol, snap))
-    .filter(Boolean);
-  scored.sort((a, b) => b.score - a.score);
+    .filter(Boolean)
+    .map((candidate) => classifyTrend(candidate, barsBySymbol[candidate.symbol]));
+
+  scored.sort((a, b) => {
+    const aTrending = a.trend === "uptrend" || a.trend === "downtrend" ? 1 : 0;
+    const bTrending = b.trend === "uptrend" || b.trend === "downtrend" ? 1 : 0;
+    if (aTrending !== bTrending) return bTrending - aTrending;
+    return b.score - a.score;
+  });
+
   return scored;
 }

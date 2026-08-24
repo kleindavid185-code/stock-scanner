@@ -7,6 +7,7 @@ import {
   getMovers,
   getSnapshots,
   getBars,
+  getBarsForSymbols,
 } from "./alpacaClient.js";
 import { rankCandidates } from "./scoring.js";
 import { aiSearchCandidates } from "./aiSearch.js";
@@ -40,8 +41,18 @@ async function runScan() {
   (movers.losers || []).forEach((m) => symbolSet.add(m.symbol));
 
   const symbols = Array.from(symbolSet).slice(0, 150);
-  const snapshots = await getSnapshots(symbols);
-  const ranked = rankCandidates(snapshots);
+  const [snapshots, barsBySymbol] = await Promise.all([
+    getSnapshots(symbols),
+    // Historical daily bars for trend classification (uptrend/downtrend/
+    // choppy), used to prioritize sorting. Best-effort -- if this batch
+    // call fails, scan still works, candidates just rank without a trend
+    // boost.
+    getBarsForSymbols(symbols, { timeframe: "1Day", limit: 20 }).catch((err) => {
+      console.error("[scan] failed to fetch bars for trend classification:", err.message);
+      return {};
+    }),
+  ]);
+  const ranked = rankCandidates(snapshots, barsBySymbol);
 
   const result = { generatedAt: new Date().toISOString(), candidates: ranked };
   cache.set(cacheKey, result);

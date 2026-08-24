@@ -72,3 +72,23 @@ export async function getBars(symbol, timeframe = "1Day", limit = 30) {
   });
   return data.bars || [];
 }
+
+// Batched daily bars for multiple symbols in one call (Alpaca's multi-symbol
+// bars endpoint) -- used by the scanner to classify trend (uptrend/
+// downtrend/choppy) for ranking, without a separate request per candidate.
+export async function getBarsForSymbols(symbols, { timeframe = "1Day", limit = 20 } = {}) {
+  if (!symbols.length) return {};
+  const feed = process.env.ALPACA_DATA_FEED || "iex";
+  const result = {};
+  let pageToken = null;
+  do {
+    const params = { symbols: symbols.join(","), timeframe, limit, feed };
+    if (pageToken) params.page_token = pageToken;
+    const data = await alpacaGet("/v2/stocks/bars", params);
+    for (const [sym, bars] of Object.entries(data.bars || {})) {
+      result[sym] = (result[sym] || []).concat(bars);
+    }
+    pageToken = data.next_page_token || null;
+  } while (pageToken);
+  return result;
+}
