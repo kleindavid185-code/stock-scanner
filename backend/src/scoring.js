@@ -7,6 +7,7 @@
 // scan," not "AI knows what's about to skyrocket."
 
 import { priceActionFlags } from "../signal-engine/indicators.js";
+import { MEGA_CAP_EXCLUDED } from "./megaCapExclusions.js";
 
 const MIN_PRICE = 5; // the only hard cutoff -- below this, spreads/quotes get too noisy to trust
 const EXTREME_RVOL = 200; // above this, RVOL usually means thin/broken data -- flagged, not excluded
@@ -26,8 +27,10 @@ function relativeVolume(dailyBar, prevDailyBar) {
 }
 
 /**
- * Scores one symbol's snapshot. The only hard exclusion is price (MIN_PRICE)
- * and obviously-broken data (BAD_DATA_CHANGE_PCT) -- everything else (RVOL,
+ * Scores one symbol's snapshot. Hard exclusions: price (MIN_PRICE),
+ * obviously-broken data (BAD_DATA_CHANGE_PCT), and mega-cap stocks/broad
+ * ETFs (MEGA_CAP_EXCLUDED) that don't fit a low-float momentum style
+ * regardless of how their RVOL/momentum/trend look. Everything else (RVOL,
  * momentum, range, trend) affects rank/flags, not whether a candidate
  * appears at all, so the list stays broad. Returns null if the symbol
  * should be excluded entirely. Does NOT classify trend -- that needs
@@ -40,6 +43,7 @@ export function scoreSnapshot(symbol, snap) {
   const trade = snap.latestTrade;
 
   if (!daily || !prevDaily || !trade) return null;
+  if (MEGA_CAP_EXCLUDED.has(symbol)) return null;
 
   const price = trade.p;
   const changePct = pctChange(prevDaily.c, price);

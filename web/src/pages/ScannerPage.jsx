@@ -36,8 +36,9 @@ export default function ScannerPage() {
     <div className="page">
       <p className="disclaimer">
         Ranked by volume surge, momentum & range — trending names (clear
-        uptrend/downtrend) sorted above choppy ones. Only hard cutoffs: $5+
-        price and obviously broken data (e.g. -90%+ crashes) excluded;
+        uptrend/downtrend) sorted above choppy ones. Hard cutoffs: $5+
+        price, obviously broken data (e.g. -90%+ crashes), and broad
+        ETFs/mega-caps (SPY, AAPL, and similar) excluded entirely —
         everything else (RVOL, momentum, trend) just affects rank and
         flags, not inclusion. A screener, not a prediction — use your own
         judgment.
