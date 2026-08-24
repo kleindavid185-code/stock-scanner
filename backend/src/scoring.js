@@ -8,9 +8,8 @@
 
 import { priceActionFlags } from "../signal-engine/indicators.js";
 
-const MIN_PRICE = 5; // below this, spreads/quotes get too noisy to trust
-const MIN_RVOL = 2; // require at least ~2x relative volume to appear at all
-const EXTREME_RVOL = 200; // above this, RVOL usually means thin/broken data, not a real surge
+const MIN_PRICE = 5; // the only hard cutoff -- below this, spreads/quotes get too noisy to trust
+const EXTREME_RVOL = 200; // above this, RVOL usually means thin/broken data -- flagged, not excluded
 const BAD_DATA_CHANGE_PCT = -90; // a -90%+ move (like the MSAIW -99% case) is almost always delisted/halted/broken data, not real price action
 
 function pctChange(from, to) {
@@ -27,10 +26,13 @@ function relativeVolume(dailyBar, prevDailyBar) {
 }
 
 /**
- * Scores one symbol's snapshot, applying the price / RVOL / data-quality
- * floors. Returns null if the symbol should be excluded entirely. Does NOT
- * classify trend -- that needs historical bars, fetched separately (see
- * rankCandidates below) only for symbols that survive these cheap filters.
+ * Scores one symbol's snapshot. The only hard exclusion is price (MIN_PRICE)
+ * and obviously-broken data (BAD_DATA_CHANGE_PCT) -- everything else (RVOL,
+ * momentum, range, trend) affects rank/flags, not whether a candidate
+ * appears at all, so the list stays broad. Returns null if the symbol
+ * should be excluded entirely. Does NOT classify trend -- that needs
+ * historical bars, fetched separately (see rankCandidates below) only for
+ * symbols that survive these cheap filters.
  */
 export function scoreSnapshot(symbol, snap) {
   const daily = snap.dailyBar;
@@ -46,7 +48,6 @@ export function scoreSnapshot(symbol, snap) {
   const gapPct = pctChange(prevDaily.c, daily.o);
 
   if (price < MIN_PRICE) return null;
-  if (rvol < MIN_RVOL) return null;
   // Extreme crashes are almost always broken/delisted/halted data (a real
   // -90%+ single-day move without a halt is vanishingly rare) -- exclude
   // rather than let them dominate the "biggest movers" ranking.

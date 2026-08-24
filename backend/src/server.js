@@ -53,7 +53,7 @@ async function runScan() {
   (movers.gainers || []).forEach((m) => symbolSet.add(m.symbol));
   (movers.losers || []).forEach((m) => symbolSet.add(m.symbol));
 
-  const symbols = Array.from(symbolSet).slice(0, 150);
+  const symbols = Array.from(symbolSet).slice(0, 200);
   const [snapshots, barsBySymbol] = await Promise.all([
     getSnapshots(symbols),
     // Historical daily bars for trend classification (uptrend/downtrend/
