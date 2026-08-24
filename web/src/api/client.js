@@ -41,4 +41,5 @@ export const api = {
     request(`/api/watchlists/${encodeURIComponent(name)}/quotes`),
   getSignals: () => request("/api/signals"),
   getSignal: (symbol) => request(`/api/signals/${symbol}`),
+  getInsight: (symbol) => request(`/api/insight/${symbol}`),
 };

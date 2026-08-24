@@ -73,6 +73,17 @@ export async function getBars(symbol, timeframe = "1Day", limit = 30) {
   return data.bars || [];
 }
 
+// Recent news articles for a symbol -- headline, summary, source, url,
+// timestamp. Used to explain *why* a stock is moving, not just that it is.
+export async function getNews(symbol, limit = 10) {
+  const data = await alpacaGet("/v1beta1/news", {
+    symbols: symbol,
+    limit,
+    sort: "desc",
+  });
+  return data.news || [];
+}
+
 // Batched daily bars for multiple symbols in one call (Alpaca's multi-symbol
 // bars endpoint) -- used by the scanner to classify trend (uptrend/
 // downtrend/choppy) for ranking, without a separate request per candidate.

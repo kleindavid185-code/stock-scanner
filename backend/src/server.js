@@ -11,6 +11,7 @@ import {
 } from "./alpacaClient.js";
 import { rankCandidates } from "./scoring.js";
 import { aiSearchCandidates } from "./aiSearch.js";
+import { getStockInsight } from "./newsInsight.js";
 import * as watchlists from "./watchlistStore.js";
 import {
   router as signalRouter,
@@ -24,6 +25,12 @@ app.use(express.json());
 // Cache scan results briefly -- free-tier Alpaca has rate limits, and a
 // mobile app polling every few seconds would burn through them fast.
 const cache = new NodeCache({ stdTTL: 15 });
+
+// News insight isn't meant to auto-poll (news doesn't change every 15s,
+// and each call costs an Anthropic request) -- this just protects against
+// a user mashing the manual refresh button from re-fetching+re-synthesizing
+// on every click.
+const insightCache = new NodeCache({ stdTTL: 120 });
 
 async function runScan() {
   const cacheKey = "scan";
@@ -97,6 +104,26 @@ app.get("/api/quote/:symbol", async (req, res) => {
       getBars(symbol, "1Day", 30),
     ]);
     res.json({ symbol, snapshot: snapshots[symbol] || null, bars });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/insight/:symbol -> "why it's moving": Claude's synthesis of
+// recent news for this symbol, plus the raw headlines it was based on.
+// News-based context only -- no price targets, no predictions. Not polled
+// on an interval; the frontend loads this once per page view and offers a
+// manual refresh button instead.
+app.get("/api/insight/:symbol", async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const cached = insightCache.get(symbol);
+    if (cached) return res.json(cached);
+
+    const insight = await getStockInsight(symbol);
+    insightCache.set(symbol, insight);
+    res.json(insight);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
