@@ -249,6 +249,73 @@ input {
   margin-top: 4px;
 }
 
+.add-watchlist {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.add-watchlist-btn {
+  background: transparent;
+  border: 1px solid #232b36;
+  color: #8b98a5;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.add-watchlist-btn:hover {
+  color: #e6edf3;
+  border-color: #3a4552;
+}
+
+.add-watchlist-btn.added {
+  color: #3fb950;
+  border-color: rgba(63, 185, 80, 0.4);
+}
+
+.add-watchlist-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 140px;
+  background: #141a22;
+  border: 1px solid #232b36;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  overflow: hidden;
+}
+
+.add-watchlist-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #e6edf3;
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.add-watchlist-option:hover {
+  background: #182028;
+}
+
+.add-watchlist-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.add-watchlist-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #8b98a5;
+}
+
 .tv-chart-wrap {
   margin-top: 16px;
   border: 1px solid #232b36;

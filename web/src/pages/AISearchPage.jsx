@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import AddToWatchlistButton from "../components/AddToWatchlistButton";
 
 const EXAMPLES = [
   "cheap stocks with huge volume today",
@@ -87,17 +88,20 @@ export default function AISearchPage() {
                 style={{ flexDirection: "column", alignItems: "stretch" }}
                 onClick={() => navigate(`/stock/${item.symbol}`)}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span className="symbol">{item.symbol}</span>
-                  <span style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                    <span className="price mono">${item.price.toFixed(2)}</span>
-                    <span
-                      className="change mono"
-                      style={{ color: item.changePct >= 0 ? "#3fb950" : "#f85149" }}
-                    >
-                      {item.changePct >= 0 ? "+" : ""}
-                      {item.changePct}%
+                  <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                      <span className="price mono">${item.price.toFixed(2)}</span>
+                      <span
+                        className="change mono"
+                        style={{ color: item.changePct >= 0 ? "#3fb950" : "#f85149" }}
+                      >
+                        {item.changePct >= 0 ? "+" : ""}
+                        {item.changePct}%
+                      </span>
                     </span>
+                    <AddToWatchlistButton symbol={item.symbol} />
                   </span>
                 </div>
                 <div className="sub" style={{ marginTop: 6 }}>{item.reason}</div>
