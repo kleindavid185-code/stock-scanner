@@ -25,8 +25,23 @@ const latestSignals = new Map();
 /**
  * Runs one full pass: for every symbol in `watchlist`, pull bars, compute
  * indicators, batch through Claude, and update the in-memory store.
+ *
+ * `watchlist` is read fresh from watchlistStore (via the `getWatchlist`
+ * callback passed to startSignalPolling) on every tick, so the tracked
+ * symbol set always matches the user's current saved watchlist(s) with no
+ * separate signal-specific list to keep in sync. Symbols no longer present
+ * are pruned from `latestSignals` here too, so a removed symbol stops
+ * appearing in /api/signals on the very next tick instead of lingering
+ * with a stale signal forever.
  */
 async function runSignalPass(watchlist) {
+  const activeSymbols = new Set(watchlist);
+  for (const symbol of latestSignals.keys()) {
+    if (!activeSymbols.has(symbol)) latestSignals.delete(symbol);
+  }
+
+  if (!watchlist.length) return;
+
   const pairs = [];
 
   for (const symbol of watchlist) {
@@ -54,14 +69,13 @@ async function runSignalPass(watchlist) {
  * Starts a polling loop. Call once at server startup, e.g.:
  *   startSignalPolling(() => currentWatchlist, 60_000);
  * `getWatchlist` is a function so you can point it at whatever watchlist
- * source you're already using (mutable array, DB query, etc).
+ * source you're already using (mutable array, DB query, etc). Called
+ * fresh on every tick so added/removed symbols take effect automatically.
  */
 function startSignalPolling(getWatchlist, intervalMs = 60_000) {
   const tick = async () => {
-    const watchlist = getWatchlist();
-    if (watchlist && watchlist.length) {
-      await runSignalPass(watchlist);
-    }
+    const watchlist = getWatchlist() || [];
+    await runSignalPass(watchlist);
   };
   tick(); // run immediately on startup
   return setInterval(tick, intervalMs);
