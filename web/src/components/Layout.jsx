@@ -5,6 +5,7 @@ const TABS = [
   { to: "/watchlists", label: "Watchlists" },
   { to: "/ai-search", label: "AI Search" },
   { to: "/signals", label: "Signals" },
+  { to: "/earnings", label: "Earnings" },
 ];
 
 export default function Layout() {

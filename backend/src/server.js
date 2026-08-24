@@ -12,6 +12,7 @@ import {
 import { rankCandidates } from "./scoring.js";
 import { aiSearchCandidates } from "./aiSearch.js";
 import { getStockInsight } from "./newsInsight.js";
+import { getTechEarnings } from "./earningsCalendar.js";
 import * as watchlists from "./watchlistStore.js";
 import {
   router as signalRouter,
@@ -31,6 +32,11 @@ const cache = new NodeCache({ stdTTL: 15 });
 // a user mashing the manual refresh button from re-fetching+re-synthesizing
 // on every click.
 const insightCache = new NodeCache({ stdTTL: 120 });
+
+// Alpha Vantage's free tier has a very low daily call budget (historically
+// ~25 requests/day) and an earnings calendar doesn't meaningfully change
+// within a day -- cache for hours, not seconds.
+const earningsCache = new NodeCache({ stdTTL: 6 * 60 * 60 });
 
 async function runScan() {
   const cacheKey = "scan";
@@ -124,6 +130,25 @@ app.get("/api/insight/:symbol", async (req, res) => {
     const insight = await getStockInsight(symbol);
     insightCache.set(symbol, insight);
     res.json(insight);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/earnings/tech -> upcoming (3-month horizon) earnings for a
+// broad tech-sector universe. Cached for hours since Alpha Vantage's free
+// tier is call-limited and this data doesn't change intraday anyway.
+app.get("/api/earnings/tech", async (req, res) => {
+  try {
+    const cacheKey = "earnings-tech";
+    const cached = earningsCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const earnings = await getTechEarnings();
+    const result = { generatedAt: new Date().toISOString(), earnings };
+    earningsCache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

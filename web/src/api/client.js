@@ -42,4 +42,5 @@ export const api = {
   getSignals: () => request("/api/signals"),
   getSignal: (symbol) => request(`/api/signals/${symbol}`),
   getInsight: (symbol) => request(`/api/insight/${symbol}`),
+  getTechEarnings: () => request("/api/earnings/tech"),
 };
