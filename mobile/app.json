@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Market Scanner",
+    "slug": "market-scanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0b0f14"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0f14"
+      }
+    }
+  }
+}
