@@ -249,6 +249,13 @@ input {
   margin-top: 4px;
 }
 
+.tv-chart-wrap {
+  margin-top: 16px;
+  border: 1px solid #232b36;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 600;

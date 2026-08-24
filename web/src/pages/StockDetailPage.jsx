@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import TradingViewChart from "../components/TradingViewChart";
 
 function Stat({ label, value }) {
   return (
@@ -54,6 +55,8 @@ export default function StockDetailPage() {
           )}
         </div>
       )}
+
+      <TradingViewChart symbol={symbol} />
 
       {snap?.dailyBar && (
         <div className="stats-grid">
