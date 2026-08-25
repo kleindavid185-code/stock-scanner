@@ -15,6 +15,7 @@ import express from "express";
 import { computeIndicatorBundle } from "./indicators.js";
 import { getSignalsBatch } from "./claudeSignal.js";
 import { fetchBarsForSymbolCached as fetchBarsForSymbol } from "./alpacaData.js";
+import { getUserSymbols } from "../src/watchlistStore.js";
 
 const router = express.Router();
 
@@ -56,6 +57,9 @@ async function runSignalPass(watchlist) {
 
   if (!pairs.length) return;
 
+  console.log(
+    `[signal-engine] polling ${pairs.length} unique symbol(s) across all users: ${pairs.map((p) => p.symbol).join(", ")}`
+  );
   const signals = await getSignalsBatch(pairs);
   for (const signal of signals) {
     latestSignals.set(signal.symbol, {
@@ -81,9 +85,15 @@ function startSignalPolling(getWatchlist, intervalMs = 60_000) {
   return setInterval(tick, intervalMs);
 }
 
-// GET /api/signals — all latest signals
+// GET /api/signals — latest signals for symbols on the requesting user's
+// own watchlist(s). The underlying poll/compute above is a global, deduped
+// union across ALL users (one Claude call per unique symbol, not one per
+// user per symbol) -- this just filters that shared pool down to what the
+// requesting user actually watches.
 router.get("/", (req, res) => {
-  res.json(Array.from(latestSignals.values()));
+  const mySymbols = new Set(getUserSymbols(req.userId));
+  const mine = Array.from(latestSignals.values()).filter((s) => mySymbols.has(s.symbol));
+  res.json(mine);
 });
 
 // GET /api/signals/:symbol — latest signal for one symbol

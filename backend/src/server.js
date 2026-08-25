@@ -14,6 +14,11 @@ import { aiSearchCandidates } from "./aiSearch.js";
 import { getStockInsight } from "./newsInsight.js";
 import { getTechEarnings } from "./earningsCalendar.js";
 import * as watchlists from "./watchlistStore.js";
+import { WatchlistLimitError } from "./watchlistStore.js";
+import { signup, login, getUserById, listUsers, setUserRole, AuthError } from "./auth.js";
+import { requireAuth } from "./authMiddleware.js";
+import { requireFullAccess, requireOwner } from "./roleMiddleware.js";
+import { checkAndIncrementAiSearchUsage, DAILY_AI_SEARCH_LIMIT } from "./usageLimits.js";
 import {
   router as signalRouter,
   startSignalPolling,
@@ -22,6 +27,42 @@ import {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Auth -- signup/login are the only public routes. Everything else under
+// /api requires a valid session token from here down.
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const { user, token } = await signup(email, password);
+    res.json({ user, token });
+  } catch (err) {
+    if (err instanceof AuthError) return res.status(400).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const { user, token } = await login(email, password);
+    res.json({ user, token });
+  } catch (err) {
+    if (err instanceof AuthError) return res.status(401).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.use("/api", requireAuth);
+
+// GET /api/auth/me -> lets the frontend validate a stored token on load
+// without prompting for credentials again.
+app.get("/api/auth/me", (req, res) => {
+  const user = getUserById(req.userId);
+  if (!user) return res.status(401).json({ error: "Not authenticated." });
+  res.json({ user });
+});
 
 // Cache scan results briefly -- free-tier Alpaca has rate limits, and a
 // mobile app polling every few seconds would burn through them fast.
@@ -86,8 +127,18 @@ app.get("/api/scan", async (req, res) => {
 
 // POST /api/ai-search { query: string } -> AI-filtered subset of the
 // current scan, each with a one-line reason it matches the request.
-app.post("/api/ai-search", async (req, res) => {
+// owner/paid only -- requireFullAccess blocks free users before this
+// handler (and therefore before any Claude call) ever runs. Capped
+// per-user beyond that since each query still costs a Claude call.
+app.post("/api/ai-search", requireFullAccess, async (req, res) => {
   try {
+    const usage = checkAndIncrementAiSearchUsage(req.userId);
+    if (!usage.allowed) {
+      return res.status(429).json({
+        error: `Daily AI Search limit reached (${DAILY_AI_SEARCH_LIMIT}/day) — resets at midnight UTC.`,
+      });
+    }
+
     const { query } = req.body;
     if (!query || !query.trim()) {
       return res.status(400).json({ error: "query is required" });
@@ -120,8 +171,8 @@ app.get("/api/quote/:symbol", async (req, res) => {
 // recent news for this symbol, plus the raw headlines it was based on.
 // News-based context only -- no price targets, no predictions. Not polled
 // on an interval; the frontend loads this once per page view and offers a
-// manual refresh button instead.
-app.get("/api/insight/:symbol", async (req, res) => {
+// manual refresh button instead. owner/paid only.
+app.get("/api/insight/:symbol", requireFullAccess, async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const cached = insightCache.get(symbol);
@@ -155,35 +206,45 @@ app.get("/api/earnings/tech", async (req, res) => {
   }
 });
 
-// Watchlists -- simple CRUD, single-user, stored in a local JSON file.
+// Watchlists -- simple CRUD, per-user, stored in SQLite. Every route below
+// scopes to req.userId (set by requireAuth) so users only ever see/manage
+// their own lists.
 app.get("/api/watchlists", (req, res) => {
-  res.json(watchlists.getAllWatchlists());
+  res.json(watchlists.getAllWatchlists(req.userId));
 });
 
 app.post("/api/watchlists/:name", (req, res) => {
-  res.json(watchlists.createWatchlist(req.params.name));
+  res.json(watchlists.createWatchlist(req.userId, req.params.name));
 });
 
 app.delete("/api/watchlists/:name", (req, res) => {
-  watchlists.deleteWatchlist(req.params.name);
+  watchlists.deleteWatchlist(req.userId, req.params.name);
   res.json({ ok: true });
 });
 
 app.post("/api/watchlists/:name/symbols", (req, res) => {
-  const { symbol } = req.body;
+  const { symbol } = req.body || {};
   if (!symbol) return res.status(400).json({ error: "symbol required" });
-  res.json(watchlists.addSymbol(req.params.name, symbol));
+  try {
+    res.json(watchlists.addSymbol(req.userId, req.params.name, symbol));
+  } catch (err) {
+    if (err instanceof WatchlistLimitError) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete("/api/watchlists/:name/symbols/:symbol", (req, res) => {
-  res.json(watchlists.removeSymbol(req.params.name, req.params.symbol));
+  res.json(watchlists.removeSymbol(req.userId, req.params.name, req.params.symbol));
 });
 
 // GET /api/watchlists/:name/quotes -> live snapshots for everything in a
 // given watchlist, so the app can show current price/change for saved names.
 app.get("/api/watchlists/:name/quotes", async (req, res) => {
   try {
-    const symbols = watchlists.getWatchlist(req.params.name);
+    const symbols = watchlists.getWatchlist(req.userId, req.params.name);
     if (!symbols.length) return res.json({});
     const snapshots = await getSnapshots(symbols);
     res.json(snapshots);
@@ -195,16 +256,37 @@ app.get("/api/watchlists/:name/quotes", async (req, res) => {
 
 // Signals -- technical indicators + Claude-interpreted bullish/bearish/
 // neutral read, polled in the background for every symbol across all
-// saved watchlists.
-app.use("/api/signals", signalRouter);
+// saved watchlists. owner/paid only for the response; the background poll
+// itself already excludes free users' symbols entirely (see
+// watchlistStore.getAllSymbolsAcrossAllUsers), so this is about giving a
+// free user a clear message, not the only cost guard.
+app.use("/api/signals", requireFullAccess, signalRouter);
 
-function currentWatchlistSymbols() {
-  const all = watchlists.getAllWatchlists();
-  return Array.from(new Set(Object.values(all).flat()));
-}
+// Admin -- owner only. Lets the app owner see every registered user and
+// flip a user's role (e.g. to 'paid' once they've paid outside the app).
+app.get("/api/admin/users", requireOwner, (req, res) => {
+  res.json(listUsers());
+});
+
+app.post("/api/admin/users/:id/role", requireOwner, (req, res) => {
+  const targetId = Number(req.params.id);
+  if (targetId === Number(req.userId)) {
+    return res.status(400).json({ error: "Can't change your own role here." });
+  }
+  try {
+    const user = setUserRole(targetId, req.body?.role);
+    res.json({ user });
+  } catch (err) {
+    if (err instanceof AuthError) return res.status(400).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Stock scanner backend (read-only) running on port ${PORT}`);
-  startSignalPolling(currentWatchlistSymbols, 60_000);
+  // Union of every user's watchlist symbols -- one Claude call per unique
+  // symbol per poll, not one per user per symbol.
+  startSignalPolling(watchlists.getAllSymbolsAcrossAllUsers, 60_000);
 });

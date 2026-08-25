@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const TABS = [
   { to: "/", label: "Scanner", end: true },
@@ -9,11 +10,21 @@ const TABS = [
 ];
 
 export default function Layout() {
+  const { user, isOwner, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  const tabs = isOwner ? [...TABS, { to: "/admin", label: "Admin" }] : TABS;
+
   return (
     <div className="app-shell">
       <nav className="sidebar">
         <h1>Market Scanner</h1>
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
@@ -25,6 +36,14 @@ export default function Layout() {
             {tab.label}
           </NavLink>
         ))}
+        {user && (
+          <div className="user-footer">
+            <div className="email">{user.email}</div>
+            <button className="logout-btn" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
+        )}
       </nav>
       <div className="main-panel">
         <Outlet />

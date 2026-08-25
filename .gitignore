@@ -1,6 +1,9 @@
 # Dependencies
 node_modules
 
+# Local SQLite database (per-user data, not shared)
+backend/data/
+
 # Env / secrets
 .env
 .env.local

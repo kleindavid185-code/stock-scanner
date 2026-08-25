@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
+import UpgradeRequired from "./UpgradeRequired";
+import { useAuth } from "../context/AuthContext";
 
 // "Why it's moving" -- loads once per symbol (no polling; news doesn't
 // change every 15s like Signals data does) with a manual refresh button.
 export default function NewsInsight({ symbol }) {
+  const { hasFullAccess } = useAuth();
   const [insight, setInsight] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,8 +25,21 @@ export default function NewsInsight({ symbol }) {
   }, [symbol]);
 
   useEffect(() => {
+    if (!hasFullAccess) {
+      setLoading(false);
+      return;
+    }
     load();
-  }, [load]);
+  }, [load, hasFullAccess]);
+
+  if (!hasFullAccess) {
+    return (
+      <div className="news-insight">
+        <div className="section-title">Why it's moving</div>
+        <UpgradeRequired feature="This feature" />
+      </div>
+    );
+  }
 
   return (
     <div className="news-insight">

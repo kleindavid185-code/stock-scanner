@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import AddToWatchlistButton from "../components/AddToWatchlistButton";
+import UpgradeRequired from "../components/UpgradeRequired";
+import { useAuth } from "../context/AuthContext";
 
 const EXAMPLES = [
   "cheap stocks with huge volume today",
@@ -11,11 +13,20 @@ const EXAMPLES = [
 
 export default function AISearchPage() {
   const navigate = useNavigate();
+  const { hasFullAccess } = useAuth();
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchedFor, setSearchedFor] = useState(null);
+
+  if (!hasFullAccess) {
+    return (
+      <div className="page">
+        <UpgradeRequired feature="AI Search" />
+      </div>
+    );
+  }
 
   const runSearch = async (q) => {
     const text = (q ?? query).trim();

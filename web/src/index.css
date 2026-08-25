@@ -97,6 +97,87 @@ input {
   padding: 8px 0;
 }
 
+.upgrade-panel {
+  background: #141a22;
+  border: 1px solid rgba(210, 153, 34, 0.35);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 12px;
+}
+
+.upgrade-title {
+  color: #d29922;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  background: #141a22;
+  border: 1px solid #232b36;
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.auth-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.auth-switch {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8b98a5;
+  text-align: center;
+}
+
+.auth-switch a {
+  color: #58a6ff;
+}
+
+.user-footer {
+  margin-top: auto;
+  padding: 12px 18px;
+  border-top: 1px solid #232b36;
+}
+
+.user-footer .email {
+  font-size: 12px;
+  color: #8b98a5;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid #232b36;
+  color: #8b98a5;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.logout-btn:hover {
+  color: #e6edf3;
+  border-color: #3a4552;
+}
+
 .center {
   display: flex;
   justify-content: center;

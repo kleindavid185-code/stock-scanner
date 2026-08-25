@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import FlashValue from "../components/FlashValue";
+import UpgradeRequired from "../components/UpgradeRequired";
+import { useAuth } from "../context/AuthContext";
 import { formatClock } from "../utils/format";
 
 export default function SignalsPage() {
   const navigate = useNavigate();
+  const { hasFullAccess } = useAuth();
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,10 +26,22 @@ export default function SignalsPage() {
   }, []);
 
   useEffect(() => {
+    if (!hasFullAccess) {
+      setLoading(false);
+      return;
+    }
     load();
     const id = setInterval(load, 20000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, hasFullAccess]);
+
+  if (!hasFullAccess) {
+    return (
+      <div className="page">
+        <UpgradeRequired feature="Signals" />
+      </div>
+    );
+  }
 
   if (loading) return <div className="center">Loading…</div>;
 
