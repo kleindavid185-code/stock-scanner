@@ -6,13 +6,11 @@
 # dashboard after creation -- Render deliberately won't read secrets out
 # of a file committed to the repo.
 #
-# IMPORTANT: the `disk` on the backend service requires a paid instance
-# type (Render's free web services don't support attached persistent
-# disks). Without it, every deploy/restart wipes the SQLite database --
-# all registered users and watchlists gone. If staying on the free plan
-# for now, drop the `disk:` block and DB_PATH var and accept that
-# tradeoff consciously; upgrade to attach the disk once this has real
-# users.
+# NOTE: the backend runs on the free plan without an attached disk, so
+# SQLite data lives on ephemeral local storage -- every deploy/restart
+# wipes the database (all registered users and watchlists gone). This is
+# an accepted tradeoff for now; attach a disk (paid plan) once this has
+# real users.
 
 services:
   - type: web
@@ -39,12 +37,6 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false
-      - key: DB_PATH
-        value: /var/data/app.db
-    disk:
-      name: sqlite-data
-      mountPath: /var/data
-      sizeGB: 1
 
   - type: web
     name: stock-scanner-web
