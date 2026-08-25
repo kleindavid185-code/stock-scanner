@@ -83,7 +83,7 @@ export default function EarningsPage() {
           as of <span className="mono">{formatClock(lastUpdated)}</span>
         </p>
       )}
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="error-text">Couldn't load earnings: {error}</p>}
 
       <div className="form-row">
         <input
@@ -120,7 +120,7 @@ export default function EarningsPage() {
             ))}
           </tbody>
         </table>
-        {!rows.length && <div className="empty">No matching upcoming earnings.</div>}
+        {!error && !rows.length && <div className="empty">No matching upcoming earnings.</div>}
       </div>
     </div>
   );

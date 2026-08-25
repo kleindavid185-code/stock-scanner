@@ -96,7 +96,22 @@ async function fetchEarningsCalendar(horizon = "3month") {
     throw new Error(`Alpha Vantage did not return earnings CSV data: ${message}`);
   }
 
-  return parseCsv(csv);
+  const rows = parseCsv(csv);
+
+  // Alpha Vantage has also been observed returning HTTP 200 with a
+  // CSV-shaped body for error cases (e.g. a missing/blank apikey), where
+  // the error text gets mangled into a single row that technically
+  // parses but isn't real earnings data (e.g. a "symbol" of "E" from the
+  // word "Error"). A real row always has an ISO reportDate -- use that
+  // as a sanity check so this doesn't silently look like "no earnings".
+  const looksValid = rows.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.reportDate));
+  if (!looksValid) {
+    throw new Error(
+      `Alpha Vantage returned an unexpected response instead of earnings data: ${trimmed.slice(0, 200)}`
+    );
+  }
+
+  return rows;
 }
 
 /**
