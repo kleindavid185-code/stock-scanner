@@ -25,7 +25,16 @@ import {
 } from "../signal-engine/signalRoute.js";
 
 const app = express();
-app.use(cors());
+
+// Allowed frontend origin(s) -- comma-separated if you need more than one
+// (e.g. a custom domain plus the onrender.com URL). Defaults to the local
+// Vite dev server so local dev keeps working with no config needed.
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
+
 app.use(express.json());
 
 // Auth -- signup/login are the only public routes. Everything else under
