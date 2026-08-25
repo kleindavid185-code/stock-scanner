@@ -1,0 +1,61 @@
+# Render Blueprint -- https://render.com/docs/blueprint-spec
+#
+# In the Render dashboard: New -> Blueprint -> connect this GitHub repo.
+# Render reads this file and offers to create both services below in one
+# step. Vars marked `sync: false` need a real value typed into the
+# dashboard after creation -- Render deliberately won't read secrets out
+# of a file committed to the repo.
+#
+# IMPORTANT: the `disk` on the backend service requires a paid instance
+# type (Render's free web services don't support attached persistent
+# disks). Without it, every deploy/restart wipes the SQLite database --
+# all registered users and watchlists gone. If staying on the free plan
+# for now, drop the `disk:` block and DB_PATH var and accept that
+# tradeoff consciously; upgrade to attach the disk once this has real
+# users.
+
+services:
+  - type: web
+    name: stock-scanner-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ALPACA_API_KEY
+        sync: false
+      - key: ALPACA_API_SECRET
+        sync: false
+      - key: ALPACA_DATA_FEED
+        value: iex
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_EMAIL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DB_PATH
+        value: /var/data/app.db
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: stock-scanner-web
+    env: static
+    rootDir: web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

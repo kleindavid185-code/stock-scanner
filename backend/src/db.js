@@ -1,12 +1,21 @@
 // SQLite connection + schema for multi-user support. Single small local
 // file, fine for a 5-10 person group -- no separate DB server to run.
 
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "..", "data", "app.db");
+// DB_PATH lets a deploy platform point this at a mounted persistent disk
+// (e.g. Render) instead of the app's own directory, which is wiped on
+// every deploy/restart without one. Defaults to backend/data/app.db for
+// local dev, matching how it's always run so far.
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "..", "data", "app.db");
+
+// Make sure the containing directory exists -- a fresh persistent disk
+// mount is empty until something creates this.
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
