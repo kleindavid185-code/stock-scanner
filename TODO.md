@@ -1,12 +1,12 @@
 # Stock scanner — next up
 
-## Backtesting harness (next major feature)
-- [ ] Design strategy definition format and scoring approach
-      before building (needs discussion, not just a prompt)
-- [ ] Use Alpaca's paper trading account for backtesting
-      (TradingView paper trading has no public API for external
-      control — not usable for this)
-- [ ] Build a way to compare multiple strategies side by side
+## Backtesting harness / trading bot (see trading-bot/README.md)
+- [x] Strategy definition format + scoring (DSR, walk-forward, holdout)
+- [x] Paper trading (built-in paper broker; Schwab has no paper API)
+- [x] Compare strategies side by side (`tradebot strategies`)
+- [ ] Run `tradebot fetch` + `discover` on real Schwab data and review results
+- [ ] Paper trade >= 40 trading days before approving anything live
+- [ ] Optional: surface `tradebot` registry/equity in the web app (read-only)
 
 ## Signals / expected ranges
 - [ ] Show the expected range (ATR-based today/tomorrow high-low)

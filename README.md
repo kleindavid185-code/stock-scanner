@@ -3,7 +3,12 @@
 A native mobile app (Expo/React Native) + backend that scans the market for
 volume/momentum candidates, tracks custom watchlists, and shows quote
 detail — using Alpaca's free market data API. **Read-only: no trading, no
-order endpoints, no account/money access anywhere in this codebase.**
+order endpoints, no account/money access anywhere in the scanner app.**
+
+> **Trading bot:** strategy backtesting, automated strategy discovery and
+> Schwab order execution live in a separate, standalone package at
+> [`trading-bot/`](trading-bot/README.md). It is deliberately isolated from
+> this multi-user web app, which stays read-only.
 
 ## How it's scored
 
