@@ -88,8 +88,20 @@ pip install -e ".[dev]"
 cp config.example.toml config.toml
 cp .env.example .env && chmod 600 .env
 tradebot demo        # end-to-end run on synthetic data, no keys needed
-pytest -q            # 35 tests
+pytest -q            # 38 tests
 ```
+
+### Backtest on real data tonight (no Schwab account needed)
+
+Add `--source yahoo` to use free Yahoo Finance history. It's adjusted for dividends and splits, so it's good for research:
+
+```bash
+tradebot backtest trend_sma --source yahoo --params '{"sma": 200}'
+tradebot discover --source yahoo
+tradebot strategies --verbose
+```
+
+Yahoo is an unofficial source and occasionally rate-limits; the bot retries automatically. Use Schwab data for live trading.
 
 ### 2. Get Schwab API access
 
@@ -174,7 +186,7 @@ Set `TRADEBOT_WEBHOOK_URL` to a Slack or Discord webhook to get fill, error and 
 ## Things to know
 
 - **Survivorship bias.** A universe of *today's* big winners (AAPL, NVDA, …) makes backtests look better than reality. ETFs are less affected. Be sceptical of stock-heavy results.
-- **Dividends.** Schwab's daily history may not be dividend-adjusted. That understates returns for income ETFs like TLT. For research you can use `data.source = "yahoo"` (`pip install yfinance`), which is adjusted, and Schwab for live trading.
+- **Dividends.** Schwab's daily history may not be dividend-adjusted. That understates returns for income ETFs like TLT. For research you can use `--source yahoo` (or `data.source = "yahoo"`), which is adjusted, and Schwab for live trading. Each source has its own cache folder, so the two never mix.
 - **Cash accounts and T+1 settlement.** Buying with unsettled sale proceeds can trigger good-faith violations. A margin-enabled account avoids this (the bot still never uses leverage). The bot always sells before it buys.
 - **Pattern day trading.** The bot rebalances once per day and holds overnight, so it doesn't day-trade.
 - **Whole shares only.** The Schwab API doesn't support fractional shares, so small `bot_capital` with many positions leaves some cash idle.

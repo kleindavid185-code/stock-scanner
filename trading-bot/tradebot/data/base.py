@@ -122,7 +122,8 @@ def make_provider(cfg) -> DataProvider:
         return SyntheticProvider()
     else:
         raise ValueError(f"unknown data source {src!r}")
-    return CachedProvider(inner, cfg.path(d["cache_dir"]))
+    # Separate cache per source so adjusted (Yahoo) and unadjusted data never mix.
+    return CachedProvider(inner, cfg.path(d["cache_dir"]) / src)
 
 
 def load_bars(cfg, symbols: list[str] | None = None, start: str | None = None,

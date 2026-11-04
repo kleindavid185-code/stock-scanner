@@ -253,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_accounts)
 
     s = sub.add_parser("fetch", help="download/refresh daily history into the cache")
+    s.add_argument("--source", choices=["schwab", "yahoo", "csv"], help="override [data] source")
     s.add_argument("--symbols", nargs="*")
     s.add_argument("--start")
     s.add_argument("--refresh", action="store_true")
@@ -263,6 +264,8 @@ def build_parser() -> argparse.ArgumentParser:
         x.add_argument("--start")
         x.add_argument("--end")
         x.add_argument("--synthetic", action="store_true", help="use synthetic data (testing only)")
+        x.add_argument("--source", choices=["schwab", "yahoo", "csv"],
+                       help="override [data] source, e.g. --source yahoo for free history")
 
     s = sub.add_parser("backtest", help="backtest one strategy")
     s.add_argument("strategy")
@@ -326,8 +329,8 @@ def main(argv=None) -> None:
     a = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if a.verbose_log else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    cfg = load_config(a.config)
-    a.config = a.config
+    overrides = {"data": {"source": a.source}} if getattr(a, "source", None) else None
+    cfg = load_config(a.config, overrides=overrides)
     a.fn(cfg, a)
 
 

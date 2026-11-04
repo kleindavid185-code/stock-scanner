@@ -2,7 +2,7 @@ numpy>=1.26
 pandas>=2.1
 schwab-py>=1.5
 python-dotenv>=1.0
-# Optional: free daily history for research when you don't want to use Schwab's API
-# yfinance>=0.2
+# Free daily history for research/backtesting (`--source yahoo`)
+yfinance>=0.2
 # Dev
 pytest>=8
