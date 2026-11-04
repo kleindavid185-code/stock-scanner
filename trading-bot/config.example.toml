@@ -1,0 +1,66 @@
+# Copy to config.toml and edit. Secrets go in .env, never here.
+
+[bot]
+state_dir = "state"            # SQLite DB, paper account, logs, kill switch
+timezone = "America/New_York"
+run_time = "09:45"             # daily rebalance time (ET), after the opening auction settles
+discover_every_days = 7        # daemon re-runs strategy discovery this often
+
+[data]
+source = "schwab"              # schwab | yahoo | csv | synthetic
+csv_dir = "data/csv"           # used when source = "csv" (files named SYMBOL.csv)
+cache_dir = "data/cache"
+history_start = "2006-01-01"
+
+[universe]
+# Anything Schwab can trade works here. Liquid ETFs + mega caps keep slippage low
+# and make backtests more trustworthy. NOTE: a hand-picked list of today's large
+# caps has survivorship bias -- backtests on it look better than reality.
+symbols = [
+  "SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "TLT", "IEF", "SHY", "GLD",
+  "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLB", "VNQ",
+  "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "JPM", "XOM", "JNJ", "PG",
+]
+benchmark = "SPY"
+
+[backtest]
+commission_bps = 0.0           # Schwab online equity trades are $0 commission
+slippage_bps = 5.0             # per side; raise for small caps (20-50 bps)
+rebalance_band = 0.02          # skip trades smaller than 2% of equity (cuts churn)
+initial_capital = 100000
+
+[discovery]
+trials_per_run = 300           # random parameter sets tried per discovery run
+holdout_years = 2.0            # most recent data, never seen by the optimizer
+wf_train_years = 4.0
+wf_test_years = 1.0
+min_trades = 30
+min_dsr = 0.95                 # Deflated Sharpe Ratio (prob. the edge isn't luck)
+min_wf_sharpe = 0.5            # walk-forward out-of-sample Sharpe
+min_holdout_sharpe = 0.3
+max_drawdown = 0.30
+max_paper_strategies = 5
+
+[promotion]
+min_paper_days = 40            # trading days a strategy must survive on paper
+demote_dd_multiple = 1.5       # retire if live drawdown > 1.5x its backtest max DD
+min_demote_dd = 0.10
+
+[risk]
+bot_capital = 10000            # max $ the bot may control (it never touches more)
+max_position_pct = 0.20        # of bot capital, per symbol
+max_gross_exposure = 1.0       # 1.0 = no leverage
+long_only = true
+min_price = 5.0
+min_dollar_volume = 20000000   # 20-day average $ volume
+daily_loss_limit_pct = 0.04    # halt new buys for the day after a -4% day
+max_drawdown_kill_pct = 0.20   # hard stop: no trading until `tradebot reset-kill`
+max_orders_per_run = 30
+blocklist = []
+
+[execution]
+live_trading_enabled = false   # second interlock -- see .env.example
+order_type = "limit"           # limit = marketable limit w/ collar; market = plain market
+limit_collar_bps = 30          # buy limit = ask * (1 + 0.30%), sell = bid * (1 - 0.30%)
+fill_timeout_sec = 120
+paper_starting_cash = 10000
