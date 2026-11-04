@@ -168,11 +168,19 @@ def _time_stop(held: pd.DataFrame, max_hold: int) -> pd.DataFrame:
     return held & (run <= max_hold)
 
 
-STRATEGIES: dict[str, type[Strategy]] = {
+SWING_STRATEGIES: dict[str, type[Strategy]] = {
     cls.name: cls
     for cls in (TrendSMA, TimeSeriesMomentum, CrossSectionalMomentum, RSIReversion,
                 BollingerReversion, DonchianBreakout)
 }
+
+from .daytrade import DAY_STRATEGIES  # noqa: E402
+
+STRATEGIES: dict[str, type[Strategy]] = {**SWING_STRATEGIES, **DAY_STRATEGIES}
+
+
+def is_intraday(name: str) -> bool:
+    return bool(getattr(STRATEGIES[name], "intraday", False))
 
 
 def build(name: str, params: dict | None = None) -> Strategy:

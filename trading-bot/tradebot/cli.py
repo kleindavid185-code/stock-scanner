@@ -67,13 +67,25 @@ def cmd_backtest(cfg, a):
     params = json.loads(a.params) if a.params else {}
     syms = [s for s in (a.symbols or cfg.symbols) if s in bars.symbols]
     r, m, res = evaluate(a.strategy, params, bars.select(syms), cfg)
-    print(f"{a.strategy} {params or '(defaults)'} on {len(syms)} symbols")
+    from .strategies import is_intraday
+
+    style = "DAY TRADE: buy open, sell close, flat overnight" if is_intraday(a.strategy) else "swing/position"
+    print(f"{a.strategy} {params or '(defaults)'} on {len(syms)} symbols  [{style}]")
     print(format_metrics(m))
+    start_d, end_d = r.index[0].date(), r.index[-1].date()
+    print(f"\n  $10,000 -> ${10_000 * (1 + m['total_return']):,.0f}   ({start_d} .. {end_d})")
     if cfg.benchmark in bars.symbols:
         b = bars.close[cfg.benchmark].pct_change().loc[r.index[0]:].fillna(0)
         bm = compute_metrics(b)
-        print(f"\n  benchmark {cfg.benchmark}: CAGR {bm['cagr']:.2%}  Sharpe {bm['sharpe']:.2f}  "
-              f"maxDD {bm['max_drawdown']:.2%}")
+        print(f"  buy & hold {cfg.benchmark}: $10,000 -> ${10_000 * (1 + bm['total_return']):,.0f}   "
+              f"CAGR {bm['cagr']:.2%}  Sharpe {bm['sharpe']:.2f}  maxDD {bm['max_drawdown']:.2%}")
+        if not m.get("trades"):
+            print("  -> strategy never traded with these parameters (signal never fired)")
+        else:
+            verdict = "BEATS" if m["total_return"] > bm["total_return"] else "does NOT beat"
+            print(f"  -> strategy {verdict} buy & hold on total dollars")
+    if is_intraday(a.strategy):
+        _pdt_warning(cfg)
     if a.out:
         out = Path(a.out)
         out.mkdir(parents=True, exist_ok=True)
@@ -82,26 +94,49 @@ def cmd_backtest(cfg, a):
         print(f"\nwrote {out}/equity.csv and trades.csv")
 
 
+def _pdt_warning(cfg):
+    cap = float(cfg.section("risk")["bot_capital"])
+    if cap < 25_000:
+        print(f"\n  NOTE: day trading in a margin account needs >= $25,000 (pattern-day-trader rule); "
+              f"bot_capital is ${cap:,.0f}. In a cash account, T+1 settlement means sale proceeds "
+              "can't be reused the next day without risking good-faith violations.")
+
+
 def cmd_discover(cfg, a):
     import time
 
     from .research.discovery import discover
     from .store import Store
+    from .strategies import DAY_STRATEGIES, STRATEGIES
 
+    families = a.families or (list(DAY_STRATEGIES) if a.daytrade else None)
+    if families:
+        unknown = [f for f in families if f not in STRATEGIES]
+        if unknown:
+            sys.exit(f"unknown families {unknown}; choose from {sorted(STRATEGIES)}")
     while True:
         bars = _bars(cfg, a)
-        s = discover(cfg, bars, Store(cfg.db_path), n_trials=a.trials, seed=a.seed)
+        s = discover(cfg, bars, Store(cfg.db_path), n_trials=a.trials, seed=a.seed, families=families)
         print(f"\nRun #{s['run_id']}: {s['trials']} trials this run, {s['total_trials_ever']} ever "
               f"(DSR pass threshold {s['dsr_threshold']:.3f})")
         if s.get("benchmark_sharpe") is not None:
-            print(f"Benchmark {cfg.benchmark} Sharpe over research window: {s['benchmark_sharpe']:.2f}")
+            print(f"Buy & hold {cfg.benchmark} over research window: CAGR {s['benchmark_cagr']:.2%}  "
+                  f"Sharpe {s['benchmark_sharpe']:.2f}")
+        if s.get("benchmark_holdout_return") is not None:
+            print(f"Buy & hold {cfg.benchmark} over holdout (last {cfg.section('discovery')['holdout_years']:g}y): "
+                  f"{s['benchmark_holdout_return']:+.1%}")
         for fam, v in s["families"].items():
             print(f"\n  {fam}: walk-forward OOS Sharpe {v['wf_sharpe']:.2f}")
             for x in v.get("shortlist", []):
                 tag = "PASS" if x["status"] == "candidate" else "fail"
-                print(f"    [{tag}] Sharpe {x['sharpe']:.2f} DD {x['max_dd']:.1%} DSR {x['dsr']:.3f} "
-                      f"trades {x['trades']}  {'; '.join(x['reasons'])}")
+                hold = "beats hold" if x.get("beats_hold_cagr") else "below hold"
+                ho = f" holdout {x['holdout_return']:+.1%}" if x.get("holdout_return") is not None else ""
+                print(f"    [{tag}] CAGR {x.get('cagr', 0):.1%} ({hold}) Sharpe {x['sharpe']:.2f} "
+                      f"DD {x['max_dd']:.1%} DSR {x['dsr']:.3f} trades {x['trades']}{ho}  {'; '.join(x['reasons'])}")
         print(f"\nNew candidates: {[c['id'] for c in s['candidates']]}  promoted to paper: {s['promoted']}")
+        if families and any(STRATEGIES[f].intraday for f in families):
+            print("Day-trade candidates are research-only for now (not auto-promoted to paper).")
+            _pdt_warning(cfg)
         if not a.loop:
             break
         print(f"sleeping {a.interval_hours}h ...")
@@ -133,6 +168,10 @@ def cmd_set_status(cfg, a, status):
     s = st.strategy(a.id)
     if not s:
         sys.exit(f"no strategy #{a.id}")
+    from .strategies import STRATEGIES, is_intraday
+
+    if status in ("paper", "live") and s["family"] in STRATEGIES and is_intraday(s["family"]):
+        sys.exit(f"#{a.id} is a day-trade strategy; paper/live execution for day trading isn't built yet")
     if status == "live" and not (s.get("shadow") or {}).get("eligible_for_live") and not a.force:
         sys.exit(f"#{a.id} hasn't completed its paper-trading period ({(s.get('shadow') or {}).get('days', 0)} days); "
                  "use --force to override (not recommended)")
@@ -279,6 +318,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int)
     s.add_argument("--loop", action="store_true", help="keep searching forever")
     s.add_argument("--interval-hours", type=float, default=24)
+    s.add_argument("--daytrade", action="store_true",
+                   help="search day-trading families (buy open, sell close) instead of swing families")
+    s.add_argument("--families", nargs="*", help="explicit list of strategy families to search")
     data_args(s)
     s.set_defaults(fn=cmd_discover)
 

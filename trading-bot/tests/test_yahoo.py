@@ -51,5 +51,5 @@ def test_cli_backtest_with_yahoo_source(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
     main(["backtest", "trend_sma", "--source", "yahoo", "--symbols", "SPY", "QQQ", "--start", "2015-01-01"])
     out = capsys.readouterr().out
-    assert "sharpe" in out and "benchmark SPY" in out
+    assert "sharpe" in out and "buy & hold SPY" in out and "$10,000 ->" in out
     assert (tmp_path / "data" / "cache" / "yahoo" / "SPY.csv").exists()

@@ -29,7 +29,8 @@ from ..backtest.engine import CostModel, run_backtest
 from ..backtest.metrics import compute_metrics, sharpe
 from ..data.base import Bars
 from ..store import Store
-from ..strategies import STRATEGIES, build
+from ..backtest.daytrade import run_daytrade_backtest
+from ..strategies import STRATEGIES, SWING_STRATEGIES, build, is_intraday
 from .stats import deflated_sharpe
 from .walkforward import walk_forward
 
@@ -54,7 +55,10 @@ def evaluate(family: str, params: dict, bars: Bars, cfg, start=None) -> tuple[pd
     strat = build(family, params)
     w = strat.target_weights(bars)
     b = cfg.section("backtest")
-    res = run_backtest(bars, w, cost_model(cfg), b["initial_capital"], b["rebalance_band"], start=start)
+    if strat.intraday:
+        res = run_daytrade_backtest(bars, w, cost_model(cfg), b["initial_capital"])
+    else:
+        res = run_backtest(bars, w, cost_model(cfg), b["initial_capital"], b["rebalance_band"], start=start)
     # Exclude the warm-up period from statistics.
     warm = bars.index[min(strat.warmup, len(bars.index) - 1)]
     r = res.returns.loc[warm:]
@@ -78,7 +82,7 @@ def discover(cfg, bars: Bars, store: Store, n_trials: int | None = None, seed: i
              families: list[str] | None = None) -> dict:
     d = cfg.section("discovery")
     n_trials = n_trials or int(d["trials_per_run"])
-    families = families or list(STRATEGIES)
+    families = families or list(SWING_STRATEGIES)
     rng = random.Random(seed)
     symbols = [s for s in bars.symbols]
     holdout_start = bars.index[-1] - pd.DateOffset(days=int(d["holdout_years"] * 365.25))
@@ -121,14 +125,18 @@ def discover(cfg, bars: Bars, store: Store, n_trials: int | None = None, seed: i
     dsr_threshold = (1 - alpha) ** (1 / n_families)  # = 1 - Sidak-adjusted alpha
 
     bench = cfg.benchmark
-    bench_sharpe = None
+    bench_sharpe = bench_cagr = bench_holdout = None
     if bench in research.symbols:
         br = research.close[bench].pct_change().dropna()
         bench_sharpe = sharpe(br)
+        bench_cagr = compute_metrics(br)["cagr"]
+        bh = bars.close[bench].loc[holdout_start:].dropna()
+        bench_holdout = float(bh.iloc[-1] / bh.iloc[0] - 1) if len(bh) > 1 else None
 
     summary = {"run_id": run_id, "trials": len(trials), "total_trials_ever": n_total, "families": {},
                "dsr_threshold": dsr_threshold,
-               "candidates": [], "benchmark_sharpe": bench_sharpe, "previously_tested": len(tested)}
+               "candidates": [], "benchmark_sharpe": bench_sharpe, "benchmark_cagr": bench_cagr,
+               "benchmark_holdout_return": bench_holdout, "previously_tested": len(tested)}
     for fam in families:
         pool = [t for t in trials if t.family == fam]
         if not pool:
@@ -169,6 +177,8 @@ def discover(cfg, bars: Bars, store: Store, n_trials: int | None = None, seed: i
             score = _score(m, wf_sharpe, holdout_m, dsr, robustness)
             summary["families"][fam].setdefault("shortlist", []).append({
                 "params": t.params, "sharpe": m.get("sharpe"), "max_dd": m.get("max_drawdown"),
+                "cagr": m.get("cagr"), "beats_hold_cagr": bench_cagr is not None and m.get("cagr", 0) > bench_cagr,
+                "holdout_return": (holdout_m or {}).get("total_return"),
                 "trades": m.get("trades"), "dsr": dsr, "robustness": robustness,
                 "holdout_sharpe": (holdout_m or {}).get("sharpe"), "status": status, "reasons": reasons})
             existing = store.strategy_by_key(t.key)
@@ -203,7 +213,9 @@ def promote_candidates(cfg, store: Store) -> list[int]:
     promoted = []
     active_families = {s["family"] for s in active}
     # Prefer diversity: one new strategy per family before doubling up.
-    cands = sorted(store.strategies(["candidate"]), key=lambda s: (s["family"] in active_families, -(s["score"] or 0)))
+    # Day-trade strategies stay research-only until live day-trade execution exists.
+    cands = [s for s in store.strategies(["candidate"]) if s["family"] in STRATEGIES and not is_intraday(s["family"])]
+    cands = sorted(cands, key=lambda s: (s["family"] in active_families, -(s["score"] or 0)))
     for s in cands:
         if slots <= 0:
             break

@@ -33,6 +33,7 @@ class Param:
 
 class Strategy:
     name: ClassVar[str] = "base"
+    intraday: ClassVar[bool] = False   # True = flat every night (day trading)
     description: ClassVar[str] = ""
     params_space: ClassVar[tuple[Param, ...]] = ()
     # Common sizing params appended to every strategy's space.

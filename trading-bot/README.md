@@ -73,7 +73,19 @@ Live capital is split equally across approved strategies, and their target weigh
 | `bollinger_reversion` | Buy z-score < −k in uptrends | window, entry_z, exit_z |
 | `donchian_breakout` | Buy N-day highs, exit at M-day lows | entry_n, exit_n |
 
-Every family also searches `max_positions`, `sizing` (`equal` or `inverse_vol`) and `vol_target` (0, 12% or 18%). To add a family, subclass `Strategy` in `tradebot/strategies/library.py` and register it in `STRATEGIES`. Discovery picks it up automatically.
+**Day-trading families** buy at the open and sell at the close, so they hold nothing overnight. They're searched with `tradebot discover --daytrade`:
+
+| Family | Idea |
+|---|---|
+| `day_gap_fade` | Buy a gap down at the open (gaps in liquid names often partly fill) |
+| `day_gap_go` | Buy a gap up at the open (tests gap continuation) |
+| `day_reversal` | Buy the open after a big down day |
+| `day_rsi` | Buy the open when prior-close RSI(2–4) is oversold |
+| `day_always` | Baseline: buy every open, sell every close. Shows how much of the market's return happens during the day vs overnight. |
+
+They can only use information available at the open, and a test checks this. Slippage is charged on both sides every day. For now they're research-only: they're never promoted to paper or live, because same-day execution isn't built yet. Be aware of the pattern-day-trader rule ($25,000 minimum in a margin account) and of T+1 settlement in cash accounts.
+
+Every swing family also searches `max_positions`, `sizing` (`equal` or `inverse_vol`) and `vol_target` (0, 12% or 18%). To add a family, subclass `Strategy` in `tradebot/strategies/library.py` and register it in `STRATEGIES`. Discovery picks it up automatically.
 
 ---
 
@@ -88,7 +100,7 @@ pip install -e ".[dev]"
 cp config.example.toml config.toml
 cp .env.example .env && chmod 600 .env
 tradebot demo        # end-to-end run on synthetic data, no keys needed
-pytest -q            # 38 tests
+pytest -q            # 56 tests
 ```
 
 ### Backtest on real data tonight (no Schwab account needed)
@@ -99,6 +111,10 @@ Add `--source yahoo` to use free Yahoo Finance history. It's adjusted for divide
 tradebot backtest trend_sma --source yahoo --params '{"sma": 200}'
 tradebot discover --source yahoo
 tradebot strategies --verbose
+
+# Day trading (buy open, sell close), compared against buy & hold in dollars:
+tradebot backtest day_always --source yahoo --symbols SPY
+tradebot discover --daytrade --source yahoo
 ```
 
 Yahoo is an unofficial source and occasionally rate-limits; the bot retries automatically. Use Schwab data for live trading.
