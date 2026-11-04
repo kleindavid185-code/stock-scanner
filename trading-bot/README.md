@@ -85,6 +85,20 @@ Live capital is split equally across approved strategies, and their target weigh
 
 They can only use information available at the open, and a test checks this. Slippage is charged on both sides every day. For now they're research-only: they're never promoted to paper or live, because same-day execution isn't built yet. Be aware of the pattern-day-trader rule ($25,000 minimum in a margin account) and of T+1 settlement in cash accounts.
 
+**Intraday families (5-minute bars)** open and close trades during the session. They're searched with `tradebot discover --intraday`:
+
+| Family | Research it's based on | Idea |
+|---|---|---|
+| `intraday_orb` | Zarattini, Barbon & Aziz (2023) | Opening-range breakout: trade in the direction of the first 5/15/30 minutes, stop at the other side of the range, optional profit target, otherwise exit at the close |
+| `intraday_momentum` | Gao, Han, Li & Zhou (2018, *JFE*) | The return from the prior close to 10:00 predicts the last half hour; enter at 15:00 or 15:30, exit at the close |
+| `intraday_noise` | Zarattini, Aziz & Barbon (2024) | Enter only on breaks outside the usual intraday "noise band" for that time of day; trail with the band or VWAP |
+
+5-minute history comes free from Alpaca, going back to 2016. Use the same `ALPACA_API_KEY` / `ALPACA_API_SECRET` as the scanner app, in `trading-bot/.env`. Only market-data endpoints are called. Downloads are cached per symbol per year in `data/cache/alpaca_5min/`. A test checks that strategies never use prices from after the moment they enter. These strategies are research-only for now, like the daily-bar day-trade families.
+
+Notes on the published versions of these strategies:
+- Their headline results often rely on leverage (2–4×) and very low costs. This bot uses no leverage, and costs are set with `--slippage-bps`.
+- For SPY, 1–2 bps per side is realistic for small orders. Results are very sensitive to this number, so test several values.
+
 Every swing family also searches `max_positions`, `sizing` (`equal` or `inverse_vol`) and `vol_target` (0, 12% or 18%). To add a family, subclass `Strategy` in `tradebot/strategies/library.py` and register it in `STRATEGIES`. Discovery picks it up automatically.
 
 ---
@@ -100,7 +114,7 @@ pip install -e ".[dev]"
 cp config.example.toml config.toml
 cp .env.example .env && chmod 600 .env
 tradebot demo        # end-to-end run on synthetic data, no keys needed
-pytest -q            # 56 tests
+pytest -q            # 68 tests
 ```
 
 ### Backtest on real data tonight (no Schwab account needed)
@@ -115,6 +129,10 @@ tradebot strategies --verbose
 # Day trading (buy open, sell close), compared against buy & hold in dollars:
 tradebot backtest day_always --source yahoo --symbols SPY
 tradebot discover --daytrade --source yahoo
+
+# Intraday on 5-minute bars (needs free Alpaca keys in .env):
+tradebot backtest intraday_momentum --symbols SPY --slippage-bps 1
+tradebot discover --intraday --symbols SPY QQQ IWM --slippage-bps 1
 ```
 
 Yahoo is an unofficial source and occasionally rate-limits; the bot retries automatically. Use Schwab data for live trading.

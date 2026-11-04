@@ -30,6 +30,7 @@ from ..backtest.metrics import compute_metrics, sharpe
 from ..data.base import Bars
 from ..store import Store
 from ..backtest.daytrade import run_daytrade_backtest
+from ..backtest.intraday import run_intraday_backtest
 from ..strategies import STRATEGIES, SWING_STRATEGIES, build, is_intraday
 from .stats import deflated_sharpe
 from .walkforward import walk_forward
@@ -53,8 +54,14 @@ def cost_model(cfg) -> CostModel:
 
 def evaluate(family: str, params: dict, bars: Bars, cfg, start=None) -> tuple[pd.Series, dict, object]:
     strat = build(family, params)
-    w = strat.target_weights(bars)
     b = cfg.section("backtest")
+    if getattr(strat, "minute_data", False):
+        res = run_intraday_backtest(bars, strat, cost_model(cfg), b["initial_capital"])
+        warm = bars.index[min(strat.warmup, len(bars.index) - 1)]
+        r = res.returns.loc[warm:]
+        tr = res.trades[pd.to_datetime(res.trades["exit"]) >= warm] if len(res.trades) else res.trades
+        return r, compute_metrics(r, tr, res.turnover.loc[warm:], res.weights.loc[warm:]), res
+    w = strat.target_weights(bars)
     if strat.intraday:
         res = run_daytrade_backtest(bars, w, cost_model(cfg), b["initial_capital"])
     else:

@@ -1,10 +1,12 @@
 import numpy as np
 import pytest
 
-from tradebot.strategies import STRATEGIES, build
+from tradebot.strategies import STRATEGIES, build, needs_minute_data
+
+DAILY = sorted(n for n in STRATEGIES if not needs_minute_data(n))
 
 
-@pytest.mark.parametrize("name", sorted(STRATEGIES))
+@pytest.mark.parametrize("name", DAILY)
 def test_weights_are_valid(name, bars):
     w = build(name).target_weights(bars)
     assert not w.isna().any().any()
@@ -12,7 +14,7 @@ def test_weights_are_valid(name, bars):
     assert (w.sum(axis=1) <= 1 + 1e-9).all()
 
 
-@pytest.mark.parametrize("name", sorted(STRATEGIES))
+@pytest.mark.parametrize("name", DAILY)
 def test_no_lookahead(name, bars):
     """Weights at date t must not change when future bars are removed."""
     rng = np.random.default_rng(0)

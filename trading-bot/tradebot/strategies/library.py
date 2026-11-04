@@ -175,8 +175,13 @@ SWING_STRATEGIES: dict[str, type[Strategy]] = {
 }
 
 from .daytrade import DAY_STRATEGIES  # noqa: E402
+from .intraday import MINUTE_STRATEGIES  # noqa: E402
 
-STRATEGIES: dict[str, type[Strategy]] = {**SWING_STRATEGIES, **DAY_STRATEGIES}
+STRATEGIES: dict[str, type[Strategy]] = {**SWING_STRATEGIES, **DAY_STRATEGIES, **MINUTE_STRATEGIES}
+
+
+def needs_minute_data(name: str) -> bool:
+    return bool(getattr(STRATEGIES[name], "minute_data", False))
 
 
 def is_intraday(name: str) -> bool:

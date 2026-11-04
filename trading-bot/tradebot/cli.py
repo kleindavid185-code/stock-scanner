@@ -59,18 +59,43 @@ def _bars(cfg, a, symbols=None):
     return load_bars(cfg, syms, start=getattr(a, "start", None), end=getattr(a, "end", None), provider=prov)
 
 
+def _intraday(cfg, a, symbols=None):
+    from .data.intraday import load_intraday, synthetic_intraday
+
+    syms = list(symbols or a.symbols or ["SPY", "QQQ", "IWM"])
+    if cfg.benchmark not in syms:
+        syms.append(cfg.benchmark)
+    if getattr(a, "synthetic", False):
+        return synthetic_intraday(syms, start=a.start or "2016-01-01", end=a.end or "2024-12-31", momentum=0.002)
+    return load_intraday(cfg, syms, start=a.start or "2016-01-01", end=a.end)
+
+
+def _apply_cost_override(cfg, a):
+    if getattr(a, "slippage_bps", None) is not None:
+        cfg.raw["backtest"]["slippage_bps"] = float(a.slippage_bps)
+
+
 def cmd_backtest(cfg, a):
     from .backtest.metrics import compute_metrics, format_metrics
     from .research.discovery import evaluate
 
-    bars = _bars(cfg, a)
-    params = json.loads(a.params) if a.params else {}
-    syms = [s for s in (a.symbols or cfg.symbols) if s in bars.symbols]
-    r, m, res = evaluate(a.strategy, params, bars.select(syms), cfg)
-    from .strategies import is_intraday
+    from .strategies import STRATEGIES, is_intraday, needs_minute_data
 
-    style = "DAY TRADE: buy open, sell close, flat overnight" if is_intraday(a.strategy) else "swing/position"
+    if a.strategy not in STRATEGIES:
+        sys.exit(f"unknown strategy {a.strategy!r}; choose from {sorted(STRATEGIES)}")
+    _apply_cost_override(cfg, a)
+    params = json.loads(a.params) if a.params else {}
+    if needs_minute_data(a.strategy):
+        bars = _intraday(cfg, a)
+        syms = [s for s in (a.symbols or ["SPY", "QQQ", "IWM"]) if s in bars.symbols]
+        style = "INTRADAY 5-min bars, flat overnight"
+    else:
+        bars = _bars(cfg, a)
+        syms = [s for s in (a.symbols or cfg.symbols) if s in bars.symbols]
+        style = "DAY TRADE: buy open, sell close, flat overnight" if is_intraday(a.strategy) else "swing/position"
+    r, m, res = evaluate(a.strategy, params, bars.select(syms), cfg)
     print(f"{a.strategy} {params or '(defaults)'} on {len(syms)} symbols  [{style}]")
+    print(f"  (slippage {cfg.section('backtest')['slippage_bps']:g} bps per side)")
     print(format_metrics(m))
     start_d, end_d = r.index[0].date(), r.index[-1].date()
     print(f"\n  $10,000 -> ${10_000 * (1 + m['total_return']):,.0f}   ({start_d} .. {end_d})")
@@ -109,13 +134,19 @@ def cmd_discover(cfg, a):
     from .store import Store
     from .strategies import DAY_STRATEGIES, STRATEGIES
 
-    families = a.families or (list(DAY_STRATEGIES) if a.daytrade else None)
+    from .strategies import MINUTE_STRATEGIES, needs_minute_data
+
+    _apply_cost_override(cfg, a)
+    families = a.families or (list(MINUTE_STRATEGIES) if a.intraday else list(DAY_STRATEGIES) if a.daytrade else None)
     if families:
         unknown = [f for f in families if f not in STRATEGIES]
         if unknown:
             sys.exit(f"unknown families {unknown}; choose from {sorted(STRATEGIES)}")
+    minute = bool(families) and all(needs_minute_data(f) for f in families)
+    if families and not minute and any(needs_minute_data(f) for f in families):
+        sys.exit("can't mix 5-minute intraday families with daily-bar families in one run")
     while True:
-        bars = _bars(cfg, a)
+        bars = _intraday(cfg, a) if minute else _bars(cfg, a)
         s = discover(cfg, bars, Store(cfg.db_path), n_trials=a.trials, seed=a.seed, families=families)
         print(f"\nRun #{s['run_id']}: {s['trials']} trials this run, {s['total_trials_ever']} ever "
               f"(DSR pass threshold {s['dsr_threshold']:.3f})")
@@ -305,6 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
         x.add_argument("--synthetic", action="store_true", help="use synthetic data (testing only)")
         x.add_argument("--source", choices=["schwab", "yahoo", "csv"],
                        help="override [data] source, e.g. --source yahoo for free history")
+        x.add_argument("--slippage-bps", type=float, help="override cost per side in basis points (1 bp = 0.01%%)")
 
     s = sub.add_parser("backtest", help="backtest one strategy")
     s.add_argument("strategy")
@@ -320,6 +352,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--interval-hours", type=float, default=24)
     s.add_argument("--daytrade", action="store_true",
                    help="search day-trading families (buy open, sell close) instead of swing families")
+    s.add_argument("--intraday", action="store_true",
+                   help="search 5-minute intraday families (needs Alpaca keys); default symbols SPY QQQ IWM")
     s.add_argument("--families", nargs="*", help="explicit list of strategy families to search")
     data_args(s)
     s.set_defaults(fn=cmd_discover)
