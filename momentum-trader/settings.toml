@@ -1,0 +1,90 @@
+# =============================================================================
+#  Momentum Trader -- the ONE settings file.
+#
+#  Everything tunable lives here. Secrets do NOT go here (they go in .env).
+#  The bot reads this file once at startup and treats it as read-only: no part
+#  of the bot can change these numbers while it is running.
+#
+#  Percentages are written as plain numbers: 5.0 means 5%.
+# =============================================================================
+
+[app]
+# Which mode the bot runs in:
+#   "dryrun" -- generate orders and log them, never send them   (Phase 4)
+#   "manual" -- send an order ONLY after you click Approve       (Phase 5)
+#   "auto"   -- send orders automatically                        (Phase 6)
+mode = "dryrun"
+
+# Second safety switch for "auto". Even with mode = "auto", nothing is sent
+# automatically unless this is also true. Leave false until you are ready.
+auto_trading_enabled = false
+
+# All session times below are US/Eastern market time.
+timezone = "America/New_York"
+
+[dashboard]
+# Your existing scanner uses 4000 (backend) and 5173 (web), so this uses 5055.
+host = "127.0.0.1"   # localhost only -- not reachable from other machines
+port = 5055
+
+# -----------------------------------------------------------------------------
+[scanner]
+min_price = 1.00                     # skip sub-$1 names (wide spreads, halts)
+max_price = 10.00
+max_float_shares = 20_000_000
+min_relative_volume = 3.0            # today's volume vs. average, time-adjusted
+min_day_volume = 500_000             # basic liquidity floor
+# "Short interest flagged" = short interest is at least this % of float.
+require_short_interest_flag = true
+min_short_interest_pct_float = 10.0
+min_pct_change = 10.0                # must already be up this much on the day
+scan_interval_seconds = 30
+
+# -----------------------------------------------------------------------------
+[entry]
+# Momentum breakout: price clears the highest high of the last N one-minute
+# bars, AND the breakout bar's volume is a multiple of the recent average.
+bar_minutes = 1
+breakout_lookback_bars = 10
+volume_confirm_multiple = 2.0
+require_above_vwap = true
+max_spread_pct = 1.5                 # skip if bid/ask spread is wider than this
+# Buy limit price = ask + this %. Keeps it a LIMIT order, but marketable.
+entry_limit_offset_pct = 0.3
+no_entries_before = "09:35"          # let the opening chaos settle
+no_entries_after = "15:30"
+
+# -----------------------------------------------------------------------------
+[exit]
+profit_target_pct = 10.0
+stop_loss_pct = 5.0
+trailing_stop_pct = 4.0              # trail this far below the highest price seen
+trailing_activation_pct = 3.0        # trailing stop only arms after +3%
+# Sell limit price = bid - this %. Still a LIMIT order (never market).
+exit_limit_offset_pct = 0.5
+# Flat by end of day: at this time, cancel open orders and sell everything.
+flatten_at = "15:50"
+
+# -----------------------------------------------------------------------------
+[risk]
+# HARD LIMITS. Every order passes through a risk gate that enforces these
+# before anything is sent. The strategy cannot bypass or loosen them.
+max_position_dollars = 500.00        # max $ in any one position
+max_account_pct_per_trade = 10.0     # ...and never more than this % of account
+max_daily_loss_dollars = 200.00      # hit this (realized + open) -> stop for the day
+max_trades_per_day = 5               # counted as entries (buys)
+max_open_positions = 2
+
+# Cash-account rules are NOT configurable and are always on:
+#   * buys are sized only from SETTLED cash (no good-faith violations)
+#   * orders are LIMIT orders only (market orders are impossible)
+#   * no overnight positions
+
+# -----------------------------------------------------------------------------
+[backtest]
+# Used by the Lean backtest (Phase 3).
+start_date = "2025-01-01"
+end_date = "2025-10-31"
+starting_cash = 5000.00
+slippage_pct = 0.5                   # assumed fill slippage on every entry and exit
+commission_per_order = 0.00          # Schwab online equity trades are $0

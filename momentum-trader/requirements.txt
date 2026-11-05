@@ -1,0 +1,5 @@
+# Phase 1 -- Schwab API auth
+schwab-py==1.5.1        # unofficial Schwab Trader API client (OAuth, accounts, quotes, orders)
+python-dotenv>=1.0      # reads secrets from .env
+
+# Later phases are added here as they are approved (Flask, OpenBB, Lean CLI).

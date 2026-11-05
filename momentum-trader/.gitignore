@@ -1,0 +1,23 @@
+# --- Secrets: NEVER commit ---
+.env
+.env.*
+!.env.example
+*.token
+token*.json
+
+# Runtime output
+logs/*
+!logs/.gitkeep
+data/*
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Lean (Phase 3)
+lean-workspace/data/
+lean-workspace/**/backtests/
