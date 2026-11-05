@@ -85,6 +85,6 @@ max_open_positions = 2
 # Used by the Lean backtest (Phase 3).
 start_date = "2025-01-01"
 end_date = "2025-10-31"
-starting_cash = 5000.00
+starting_cash = 1000.00            # simulated account size
 slippage_pct = 0.5                   # assumed fill slippage on every entry and exit
 commission_per_order = 0.00          # Schwab online equity trades are $0

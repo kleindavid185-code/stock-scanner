@@ -6,6 +6,7 @@
     python trader.py auth login --manual   # log in by copy-pasting URLs instead
     python trader.py auth status           # token age, account type, settled cash
     python trader.py auth logout           # delete the saved token from .env
+    python trader.py backtest [--data DIR] # replay history through the strategy
 
 More commands (scan, dashboard, backtest, run, kill) arrive in later phases.
 """
@@ -17,7 +18,7 @@ import sys
 
 from momentum_trader import envstore, schwab_auth
 from momentum_trader.eventlog import log_error, log_event, setup_logging
-from momentum_trader.paths import ENV_FILE, PROJECT_DIR
+from momentum_trader.paths import DATA_DIR, ENV_FILE, PROJECT_DIR
 from momentum_trader.settings import SettingsError, load_settings
 
 
@@ -146,6 +147,26 @@ def cmd_auth_logout(_args) -> int:
     return 0
 
 
+def cmd_backtest(args) -> int:
+    from pathlib import Path
+    from momentum_trader.backtest import run_backtest, summarize, write_report
+    data_dir = Path(args.data)
+    if not (data_dir / "universe.csv").exists():
+        print(f"No historical data at {data_dir} (expected universe.csv + bars/).\n"
+              "Download data first -- see README 'Backtest'.")
+        return 1
+    s = load_settings()
+    log_event("system", "Backtest started", data=str(data_dir))
+    result = run_backtest(s, data_dir)
+    report = write_report(result, Path(args.out))
+    st = summarize(result)
+    log_event("system", "Backtest finished", **{k: st[k] for k in
+              ("net_profit", "trades", "win_rate_pct", "max_drawdown")})
+    print(report.read_text())
+    print(f"Report: {report}\nTrades: {report.parent / 'trades.csv'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="trader.py", description="Momentum Trader")
     sub = p.add_subparsers(dest="command", required=True)
@@ -160,6 +181,11 @@ def build_parser() -> argparse.ArgumentParser:
     login.set_defaults(func=cmd_auth_login)
     auth_sub.add_parser("status", help="check token and account").set_defaults(func=cmd_auth_status)
     auth_sub.add_parser("logout", help="delete the saved token").set_defaults(func=cmd_auth_logout)
+
+    bt = sub.add_parser("backtest", help="replay historical 1-minute data through the strategy")
+    bt.add_argument("--data", default=str(DATA_DIR / "history"), help="historical data folder")
+    bt.add_argument("--out", default=str(DATA_DIR / "backtest"), help="report output folder")
+    bt.set_defaults(func=cmd_backtest)
     return p
 
 

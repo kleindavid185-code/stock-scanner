@@ -20,7 +20,7 @@ and it does not import, read, or modify anything outside `momentum-trader/`.
 |---|---|---|
 | 1 | Project setup, Schwab OAuth, tokens in `.env` | **done, awaiting review** |
 | 2 | Real-time data + scanner + Flask dashboard (port 5055) | not started |
-| 3 | Strategy + Lean backtest + report | not started |
+| 3 | Strategy + Lean backtest + report | strategy, risk gate and backtester built and tested; **waiting on historical data access**; Lean wrapper not yet written |
 | 4 | Dry-run mode (orders generated and logged, never sent) | not started |
 | 5 | Live with manual approval (click to approve each order) | not started |
 | 6 | Fully automatic mode (off by default) | not started |
@@ -163,7 +163,15 @@ momentum-trader/
 These sections are filled in as each phase is built and approved.
 
 * **Scanner + dashboard** (Phase 2): not built yet
-* **Backtest** (Phase 3): not built yet
+* **Backtest** (Phase 3):
+  ```bash
+  python trader.py backtest            # reads data/history/, writes data/backtest/report.md
+  ```
+  The backtester replays 1-minute bars through the same strategy and risk-gate
+  code the live bot will use. It starts from `[backtest] starting_cash`
+  ($1,000) and reports net profit, win rate, average win/loss, max drawdown,
+  and its slippage and fill assumptions. It needs a historical data download
+  first, and that downloader depends on which data source you choose.
 * **Dry run** (Phase 4): not built yet
 * **Manual approval** (Phase 5): not built yet
 * **Automatic** (Phase 6): not built yet
